@@ -1,8 +1,13 @@
 - 
-   name: Deploy a complete WebSite
+   name: Deploy a complete WebSite with Apache, Php and Maria-Db
    hosts: all
    vars: 
-      mariadb_ip: 192.168.142.136
+      mariadb_ip: 1.1.1.1
+      db_name: ecomdb
+      db_user: ecomuser
+      db_password: ecompassword
+      script_local_path: /root/AnsibleWebsite/db-load-scripts.sql
+
    tasks :
      - name: Install FirewallD
        yum:
@@ -38,22 +43,22 @@
      - name: Create database
        when: inventory_hostname in groups['database']
        mysql_db: 
-         name: ecomdb
+         name: "{{ db_name }}"
          state: present
      - name: Create user
        when: inventory_hostname in groups['database']
        mysql_user:
-         name: ecomuser
-         password: ecompassword
+         name: "{{ db_user }}"
+         password: "{{ db_password }}"
          priv: '*.*:ALL'
-     #- name: Copy script
-     #  when: inventory_hostname in groups['database']
-     #  copy:
-     #    src: /root/AnsibleWebsite/db-load-scripts.sql
-     #    dest: /tmp/db-load-scripts.sql
-     #- name: Launch the script
-     #  when: inventory_hostname in groups['database']
-     #  command: mysql < /tmp/db-load-script.sql
+     - name: Copy script
+       when: inventory_hostname in groups['database']
+       copy:
+         src: "{{ script_local_path }}"
+         dest: /tmp/db-load-scripts.sql
+     - name: Launch the script
+       when: inventory_hostname in groups['database']
+       command: mysql < /tmp/db-load-script.sql
 
      - name: Install Httpd, Php and Php-mysql
        when: inventory_hostname in groups['web']
@@ -96,8 +101,8 @@
        when: inventory_hostname in groups['web']
        replace:
          path: /var/www/html/index.php
-         regexp: '172.20.1.101'
-         replace: '{{ mariadb_ip }}'
+         regexp: '192.168.142.136'
+         replace: "{{ mariadb_ip }}"
      - name: Reload Httpd service
        when: inventory_hostname in groups['web']
        systemd:
