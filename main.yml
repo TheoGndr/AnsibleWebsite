@@ -1,0 +1,103 @@
+- 
+   name: Deploy a complete WebSite
+   hosts: all
+   tasks :
+     - name: Install FirewallD
+       yum:
+         name: firewalld
+         state: latest
+     - name: Start and enable FirewallD
+       systemd:
+         name: firewalld
+         state: started
+         enabled: yes
+
+     - name: Install MariaDb and MySql-Python
+       when: inventory_hostname in groups['database']
+       yum:
+         name: 
+           - mariadb-server
+           - MySQL-python
+         state: latest
+     - name: Start and enable MariaDb
+       when: inventory_hostname in groups['database']
+       systemd:
+         name: mariadb
+         state: started
+         enabled: yes
+     - name: Configure firewall for database access
+       when: inventory_hostname in groups['database']
+       firewalld:
+         port: 3306/tcp
+         permanent: yes
+         zone: public
+         immediate: yes
+         state: enabled
+     - name: Create database
+       when: inventory_hostname in groups['database']
+       mysql_db: 
+         name: ecomdb
+         state: present
+     - name: Create user
+       when: inventory_hostname in groups['database']
+       mysql_user:
+         name: ecomuser
+         password: ecompassword
+         priv: '*.*:ALL'
+     #- name: Copy script
+     #  when: inventory_hostname in groups['database']
+     #  copy:
+     #    src: /root/AnsibleWebsite/db-load-scripts.sql
+     #    dest: /tmp/db-load-scripts.sql
+     #- name: Launch the script
+     #  when: inventory_hostname in groups['database']
+     #  command: mysql < /tmp/db-load-script.sql
+
+     - name: Install Httpd, Php and Php-mysql
+       when: inventory_hostname in groups['web']
+       yum:
+         name: 
+           - httpd
+           - php
+           - php-mysql
+         state: latest
+     - name: Configure firewall for Http access
+       when: inventory_hostname in groups['web']
+       firewalld:
+         port: 80/tcp
+         permanent: yes
+         zone: public
+         immediate: yes
+         state: enabled
+     - name: Change directory index
+       when: inventory_hostname in groups['web']
+       replace:
+         path: /etc/httpd/conf/httpd.conf
+         regexp: 'DirectoryIndex index.html'
+         replace: 'DirectoryIndex index.php'
+     - name: Start and enable Httpd
+       when: inventory_hostname in groups['web']
+       systemd:
+         name: httpd
+         state: started
+         enabled: yes
+     - name: Install git 
+       when: inventory_hostname in groups['web']
+       yum:
+         name: git
+     - name: Git clone
+       when: inventory_hostname in groups['web']
+       git:
+         repo: https://github.com/kodekloudhub/learning-app-ecommerce.git
+         dest: /var/www/html
+     - name: Change database Ip address
+       when: inventory_hostname in groups['web']
+       replace:
+         path: /var/www/html/index.php
+         regexp: '172.20.1.101'
+         replace: '192.168.142.136'
+     - name: Reload Httpd service
+       when: inventory_hostname in groups['web']
+       systemd:
+         name: httpd
+         state: reloaded
